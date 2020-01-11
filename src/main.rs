@@ -1,18 +1,32 @@
-use std::env;
-use std::process;
+use std::io::{self, Write};
 
-use mkgrep::Config;
+use exitfailure::ExitFailure;
+use failure::ResultExt;
+use structopt::StructOpt;
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
+/// Search for a pattern in a file and display the lines that contain it.
+#[derive(StructOpt)]
+struct Cli {
+    /// The pattern to look for
+    pattern: String,
+    /// The path to the file to read
+    #[structopt(parse(from_os_str))]
+    path: std::path::PathBuf,
+}
 
-    let config = Config::new(&args).unwrap_or_else(|err| {
-        println!("Problem parsing arguments: {}", err);
-        process::exit(1);
-    });
+fn main() -> Result<(), ExitFailure> {
+    let args = Cli::from_args();
+    let pattern = args.pattern;
+    let path = args.path;
+    let content = std::fs::read_to_string(&path)
+        .with_context(|_| format!("could not read file `{:?}`", path))?;
 
-    if let Err(e) = mkgrep::run(config) {
-        println!("Application error: {}", e);
-        process::exit(1);
+    let stdout = io::stdout();
+    let mut handle = io::BufWriter::new(stdout);
+    for line in content.lines() {
+        if line.contains(&pattern) {
+            writeln!(handle, "{}", line);
+        }
     }
+    Ok(())
 }
